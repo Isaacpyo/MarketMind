@@ -11,93 +11,77 @@ import re
 
 FALLBACK_CATEGORY = "Gifts & Novelties"
 
-CATEGORY_RULES: list[tuple[str, tuple[str, ...]]] = [
+# Keywords are separated by '|'; each matches as a whole word, with an optional plural 'S'.
+CATEGORY_RULES: list[tuple[str, str]] = [
     (
         "Christmas & Seasonal",
-        (
-            "CHRISTMAS", "XMAS", "ADVENT", "SANTA", "REINDEER", "BAUBLE", "SNOWFLAKE", "NATIVITY",
-            "TREE DECORATION", "SLEIGH", "NOEL", "EASTER",
-        ),
+        ("CHRISTMAS|XMAS|ADVENT|SANTA|REINDEER|BAUBLE|SNOWFLAKE|NATIVITY|TREE DECORATION|SLEIGH|NOEL|EASTER"),
     ),
     (
         "Candles & Lighting",
-        (
-            "CANDLE", "CANDLEHOLDER", "CHOCOLATECANDLE", "T-LIGHT", "TLIGHT", "TEA LIGHT", "LANTERN",
-            "LIGHT", "LAMP", "MATCHES",
-        ),
+        ("CANDLE|CANDLEHOLDER|CHOCOLATECANDLE|T-LIGHT|TLIGHT|TEA LIGHT|LANTERN|LIGHT|LAMP|MATCHES"),
     ),
     (
         "Bags",
-        ("BAG", "SHOPPER", "PURSE", "RUCKSACK", "BACKPACK", "TOTE"),
+        "BAG|SHOPPER|PURSE|RUCKSACK|BACKPACK|TOTE",
     ),
     (
         "Kitchen & Dining",
         (
-            "MUG", "CUP", "PLATE", "BOWL", "TEACUP", "TEAPOT", "TEA SET", "CAKE", "CAKESTAND", "BAKING",
-            "NAPKIN", "CUTLERY", "LUNCH BOX", "JUG", "TRAY", "APRON", "OVEN GLOVE", "OVEN MITT",
-            "COASTER", "SPOON", "KITCHEN", "RECIPE", "JAM", "BOTTLE", "GLASS", "SAUCER", "BEAKER",
-            "STRAW", "TUMBLER", "PANTRY", "COLANDER", "CHOPSTICK", "EGG", "DOILY", "DOILIES",
-            "COOKIE CUTTER", "BISCUIT", "BREAD BIN", "TEA TOWEL", "BUTTER DISH", "SUGAR", "STRAINER",
-            "TONGS", "PLACEMAT", "WASHING UP GLOVE", "FOOD COVER", "SALT", "POPCORN", "DISPENSER",
-            "FOOD CONTAINER",
+            "MUG|CUP|PLATE|BOWL|TEACUP|TEAPOT|TEA SET|CAKE|CAKESTAND|BAKING|NAPKIN|CUTLERY|"
+            "LUNCH BOX|JUG|TRAY|APRON|OVEN GLOVE|OVEN MITT|COASTER|SPOON|KITCHEN|RECIPE|JAM|BOTTLE|"
+            "GLASS|SAUCER|BEAKER|STRAW|TUMBLER|PANTRY|COLANDER|CHOPSTICK|EGG|DOILY|DOILIES|"
+            "COOKIE CUTTER|BISCUIT|BREAD BIN|TEA TOWEL|BUTTER DISH|SUGAR|STRAINER|TONGS|PLACEMAT|"
+            "WASHING UP GLOVE|FOOD COVER|SALT|POPCORN|DISPENSER|FOOD CONTAINER"
         ),
     ),
     (
         "Stationery & Gift Wrap",
         (
-            "CARD", "WRAP", "PAPER", "NOTEBOOK", "NOTE BOOK", "EXERCISE BOOK", "ADDRESS BOOK", "PENCIL",
-            "PEN", "STICKER", "TAPE", "ENVELOPE", "SKETCHBOOK", "ERASER", "RIBBON", "GIFT TAG", "TAG",
-            "NOTEPAD", "JOURNAL", "DIARY", "CALENDAR", "STAMP", "CRAYON", "CHALK STICK", "RULER",
-            "STATIONERY", "WRITING SET", "MEMO BOARD", "MEMOBOARD", "POSTCARD",
+            "CARD|WRAP|PAPER|NOTEBOOK|NOTE BOOK|EXERCISE BOOK|ADDRESS BOOK|PENCIL|PEN|STICKER|TAPE|"
+            "ENVELOPE|SKETCHBOOK|ERASER|RIBBON|GIFT TAG|TAG|NOTEPAD|JOURNAL|DIARY|CALENDAR|STAMP|"
+            "CRAYON|CHALK STICK|RULER|STATIONERY|WRITING SET|MEMO BOARD|MEMOBOARD|POSTCARD"
         ),
     ),
     (
         "Toys, Crafts & Party",
         (
-            "TOY", "GAME", "DOLL", "DOLLY", "PLAYHOUSE", "SPACEBOY", "PARTY", "BUNTING", "BALLOON",
-            "CRACKERS", "PAINT SET", "JIGSAW", "SKITTLES", "DOMINOES", "SOLDIER", "BINGO", "SNAP",
-            "KIT", "CHILDRENS", "CHILDS", "KIDS", "TEDDY", "FELTCRAFT", "CRAFT", "KNITTING",
-            "SPINNING TOP", "SKIPPING ROPE", "LUDO", "SNAKES & LADDERS", "NAUGHTS & CROSSES",
-            "MODELLING CLAY", "COLOURING", "STENCIL", "DRAWING SLATE", "ROCKING HORSE", "GLIDER",
-            "CANVAS", "SPORTING FUN",
+            "TOY|GAME|DOLL|DOLLY|PLAYHOUSE|SPACEBOY|PARTY|BUNTING|BALLOON|CRACKERS|PAINT SET|JIGSAW|"
+            "SKITTLES|DOMINOES|SOLDIER|BINGO|SNAP|KIT|CHILDRENS|CHILDS|KIDS|TEDDY|FELTCRAFT|CRAFT|"
+            "KNITTING|SPINNING TOP|SKIPPING ROPE|LUDO|SNAKES & LADDERS|NAUGHTS & CROSSES|"
+            "MODELLING CLAY|COLOURING|STENCIL|DRAWING SLATE|ROCKING HORSE|GLIDER|CANVAS|"
+            "SPORTING FUN"
         ),
     ),
     (
         "Storage & Organisation",
-        (
-            "TIN", "BOX", "BOXES", "BASKET", "STORAGE", "JAR", "DRAWER", "CASE", "CRATE", "CONTAINER",
-            "PEGS", "CHEST", "CABINET",
-        ),
+        "TIN|BOX|BOXES|BASKET|STORAGE|JAR|DRAWER|CASE|CRATE|CONTAINER|PEGS|CHEST|CABINET",
     ),
     (
         "Garden & Outdoor",
         (
-            "GARDEN", "GARDENERS", "PLANT", "PLANTER", "WATERING", "BIRD", "PICNIC", "FLOWER POT",
-            "POT", "KNEELING", "HERB MARKER", "HAMMOCK", "BEACH", "SANDCASTLE", "WINDMILL", "BICYCLE",
+            "GARDEN|GARDENERS|PLANT|PLANTER|WATERING|BIRD|PICNIC|FLOWER POT|POT|KNEELING|"
+            "HERB MARKER|HAMMOCK|BEACH|SANDCASTLE|WINDMILL|BICYCLE"
         ),
     ),
     (
         "Bath & Beauty",
-        (
-            "SOAP", "BATH", "TOWEL", "BATHROOM", "WASHBAG", "SPONGE", "HAND WARMER", "MAKE UP",
-            "LIP GLOSS", "TISSUES",
-        ),
+        "SOAP|BATH|TOWEL|BATHROOM|WASHBAG|SPONGE|HAND WARMER|MAKE UP|LIP GLOSS|TISSUES",
     ),
     (
         "Fashion & Accessories",
         (
-            "NECKLACE", "BRACELET", "EARRING", "RING", "HAIR", "HAIRBAND", "BROOCH", "CHARM", "SCARF",
-            "KEYRING", "KEY FOB", "UMBRELLA", "PARASOL", "FAN", "PONCHO",
+            "NECKLACE|BRACELET|EARRING|RING|HAIR|HAIRBAND|BROOCH|CHARM|SCARF|KEYRING|KEY FOB|"
+            "UMBRELLA|PARASOL|FAN|PONCHO"
         ),
     ),
     (
         "Home Décor",
         (
-            "SIGN", "FRAME", "CLOCK", "CUSHION", "DOORMAT", "MAT", "WALL", "MIRROR", "ORNAMENT",
-            "HEART", "HANGING", "DECORATION", "VASE", "GARLAND", "CHALKBOARD", "BLACKBOARD",
-            "BLACK BOARD", "MAGNET", "HOOK", "DOORSTOP", "THROW", "BLANKET", "WREATH", "BIRDHOUSE",
-            "PLAQUE", "BUTTERFLY", "HOT WATER BOTTLE", "RACK", "BUILDING BLOCK", "BLOCK LETTERS",
-            "WICKER STAR", "DOOR HANGER", "PHOTO", "STOOL", "FILLER PAD", "COAT HANGER",
+            "SIGN|FRAME|CLOCK|CUSHION|DOORMAT|MAT|WALL|MIRROR|ORNAMENT|HEART|HANGING|DECORATION|"
+            "VASE|GARLAND|CHALKBOARD|BLACKBOARD|BLACK BOARD|MAGNET|HOOK|DOORSTOP|THROW|BLANKET|"
+            "WREATH|BIRDHOUSE|PLAQUE|BUTTERFLY|HOT WATER BOTTLE|RACK|BUILDING BLOCK|BLOCK LETTERS|"
+            "WICKER STAR|DOOR HANGER|PHOTO|STOOL|FILLER PAD|COAT HANGER"
         ),
     ),
 ]
@@ -105,8 +89,7 @@ CATEGORY_RULES: list[tuple[str, tuple[str, ...]]] = [
 _COMPILED_RULES: list[tuple[str, re.Pattern[str]]] = [
     (
         category,
-        # Allow a trailing plural "S" so "NAPKIN" also matches "NAPKINS".
-        re.compile(r"\b(?:" + "|".join(re.escape(k) for k in keywords) + r")S?\b"),
+        re.compile(r"\b(?:" + "|".join(re.escape(k) for k in keywords.split("|")) + r")S?\b"),
     )
     for category, keywords in CATEGORY_RULES
 ]

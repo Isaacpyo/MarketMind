@@ -45,7 +45,7 @@ def load_raw() -> pd.DataFrame:
         RAW_DIR.mkdir(parents=True, exist_ok=True)
         archive = RAW_DIR / "online_retail.zip"
         print(f"Downloading {SOURCE_URL} …")
-        urllib.request.urlretrieve(SOURCE_URL, archive)  # noqa: S310 - fixed https URL
+        urllib.request.urlretrieve(SOURCE_URL, archive)
         with zipfile.ZipFile(archive) as zf:
             zf.extract("Online Retail.xlsx", RAW_DIR)
         (RAW_DIR / "Online Retail.xlsx").rename(xlsx)
@@ -150,9 +150,10 @@ def main() -> None:
 
     SEED_DIR.mkdir(parents=True, exist_ok=True)
     (SEED_DIR / "products.json").write_text(json.dumps(products, indent=1, ensure_ascii=False))
-    with gzip.open(SEED_DIR / "interactions.csv.gz", "wt", encoding="utf-8") as fh:
-        out = pairs.assign(ts=pairs["ts"].dt.strftime("%Y-%m-%dT%H:%M:%S"))
-        out.to_csv(fh, index=False)
+    out = pairs.assign(ts=pairs["ts"].dt.strftime("%Y-%m-%dT%H:%M:%S"))
+    # mtime=0 keeps the archive byte-identical across rebuilds.
+    with gzip.GzipFile(SEED_DIR / "interactions.csv.gz", "wb", mtime=0) as fh:
+        fh.write(out.to_csv(index=False).encode("utf-8"))
     (SEED_DIR / "demo_profile.json").write_text(json.dumps(demo, indent=1))
 
     cats = pd.Series([p["category"] for p in products]).value_counts()
