@@ -14,6 +14,9 @@ export interface paths {
         /**
          * Health
          * @description Cheap liveness probe; the web app polls it to detect a sleeping free-tier server.
+         *
+         *     It never fails because of MongoDB: a database blip shouldn't make Render restart a healthy
+         *     process. Readiness is reported separately in the body.
          */
         get: operations["health_api_health_get"];
         put?: never;

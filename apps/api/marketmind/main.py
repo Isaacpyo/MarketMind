@@ -38,12 +38,21 @@ def prepare(db: Db, settings: Settings, engine: RecommenderEngine, coordinator: 
             log.info("another process is already training")
 
 
-def _prepare_in_background(app: FastAPI) -> None:
-    try:
-        prepare(app.state.db, app.state.settings, app.state.engine, app.state.coordinator)
-        log.info("startup preparation finished")
-    except Exception:
-        log.exception("startup preparation failed")
+PREPARE_MAX_BACKOFF_SECONDS = 60.0
+
+
+def _prepare_in_background(app: FastAPI, stop: threading.Event) -> None:
+    """Retry with backoff: a cold Atlas cluster or a network blip must not leave the API unready."""
+    delay = 2.0
+    while not stop.is_set():
+        try:
+            prepare(app.state.db, app.state.settings, app.state.engine, app.state.coordinator)
+            log.info("startup preparation finished")
+            return
+        except Exception:
+            log.exception("startup preparation failed; retrying in %.0fs", delay)
+            stop.wait(delay)
+            delay = min(delay * 2, PREPARE_MAX_BACKOFF_SECONDS)
 
 
 def create_app(settings: Settings | None = None, db: Db | None = None) -> FastAPI:
@@ -69,13 +78,15 @@ def create_app(settings: Settings | None = None, db: Db | None = None) -> FastAP
             "auth": RateLimiter(settings.auth_rate_limit_per_minute),
             "events": RateLimiter(settings.events_rate_limit_per_minute),
         }
+        stop = threading.Event()
         if settings.app_env == "test":
             prepare(database, settings, engine, app.state.coordinator)
         else:
             # Bind the port immediately so a waking free-tier instance answers /health while
             # seeding and model loading continue in the background.
-            threading.Thread(target=_prepare_in_background, args=(app,), daemon=True).start()
+            threading.Thread(target=_prepare_in_background, args=(app, stop), daemon=True).start()
         yield
+        stop.set()
         if client is not None:
             client.close()
 

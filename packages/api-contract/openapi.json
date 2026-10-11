@@ -12,7 +12,7 @@
           "health"
         ],
         "summary": "Health",
-        "description": "Cheap liveness probe; the web app polls it to detect a sleeping free-tier server.",
+        "description": "Cheap liveness probe; the web app polls it to detect a sleeping free-tier server.\n\nIt never fails because of MongoDB: a database blip shouldn't make Render restart a healthy\nprocess. Readiness is reported separately in the body.",
         "operationId": "health_api_health_get",
         "responses": {
           "200": {

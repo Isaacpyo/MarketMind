@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+import threading
 import time
+from types import SimpleNamespace
 
+import pytest
 from fastapi.testclient import TestClient
+from pymongo.errors import ServerSelectionTimeoutError
 
+from marketmind import main as main_module
 from marketmind.db import Db
 from tests.conftest import auth_header
 
@@ -16,6 +21,16 @@ def test_health_reports_ready_seeded_and_trained(client: TestClient) -> None:
     assert body["ready"] is True
     assert body["seeded"] is True
     assert body["model_version"]
+
+
+def test_health_survives_a_database_outage(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    def broken(*_: object, **__: object) -> None:
+        raise ServerSelectionTimeoutError("no primary")
+
+    monkeypatch.setattr(client.app.state.db.meta, "find_one", broken)  # type: ignore[attr-defined]
+    response = client.get("/api/health")
+    assert response.status_code == 200
+    assert response.json()["seeded"] is False
 
 
 def test_security_headers_and_cors(client: TestClient) -> None:
@@ -313,3 +328,22 @@ def test_retrain_validates_params_and_cooldown(client: TestClient, demo_token: s
     blocked = client.post("/api/admin/retrain", headers=headers)
     assert blocked.status_code == 429
     assert int(blocked.headers["retry-after"]) > 0
+
+
+class _NoWaitEvent(threading.Event):
+    def wait(self, timeout: float | None = None) -> bool:
+        return False
+
+
+def test_startup_preparation_retries_until_the_database_answers(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[int] = []
+
+    def flaky_prepare(*_args: object) -> None:
+        calls.append(1)
+        if len(calls) < 3:
+            raise ServerSelectionTimeoutError("cluster still waking")
+
+    monkeypatch.setattr(main_module, "prepare", flaky_prepare)
+    app = SimpleNamespace(state=SimpleNamespace(db=None, settings=None, engine=None, coordinator=None))
+    main_module._prepare_in_background(app, _NoWaitEvent())  # type: ignore[arg-type]
+    assert len(calls) == 3
