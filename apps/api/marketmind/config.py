@@ -33,7 +33,9 @@ class Settings(BaseSettings):
     train_on_startup: bool = True
 
     demo_users_are_admin: bool = True
-    demo_ttl_hours: int = Field(default=72, ge=1, le=24 * 30)
+    demo_ttl_hours: int = Field(default=24, ge=1, le=24 * 30)
+    # Global cap on new demo shoppers, so a flood of sign-ups can't fill a 512 MB Atlas M0.
+    demo_global_limit_per_hour: int = Field(default=120, ge=1)
 
     retrain_cooldown_seconds: int = Field(default=120, ge=0)
     # Number of threads implicit may use; 1 keeps the free-tier box responsive while training.

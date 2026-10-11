@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from bson import ObjectId
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
 from pymongo.errors import DuplicateKeyError
 
 from marketmind.demo import create_demo_user
 from marketmind.deps import CurrentUser, DbDep, SettingsDep, rate_limited
+from marketmind.ratelimit import RateLimiter
 from marketmind.schemas import AuthOut, LoginIn, RegisterIn, User
 from marketmind.security import hash_password, verify_password
 from marketmind.services import issue_token, to_user
@@ -56,8 +57,15 @@ def login(body: LoginIn, db: DbDep, settings: SettingsDep) -> AuthOut:
     status_code=status.HTTP_201_CREATED,
     dependencies=[rate_limited("auth")],
 )
-def demo_login(db: DbDep, settings: SettingsDep) -> AuthOut:
+def demo_login(db: DbDep, settings: SettingsDep, request: Request) -> AuthOut:
     """Create an isolated demo shopper with a real purchase history and sign them in."""
+    limiter: RateLimiter = request.app.state.rate_limiters["demo_global"]
+    if not limiter.allow("all"):
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            "The demo is very popular right now. Please try again in a few minutes.",
+            headers={"Retry-After": "300"},
+        )
     return issue_token(create_demo_user(db, settings), settings)
 
 

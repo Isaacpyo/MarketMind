@@ -108,6 +108,12 @@ def test_demo_login_creates_isolated_shoppers_with_history(client: TestClient, d
     assert all(e["source"] == "demo_clone" and e.get("expires_at") for e in clones)
 
 
+def test_demo_signups_have_a_global_cap(client: TestClient) -> None:
+    client.app.state.rate_limiters["demo_global"].limit = 2  # type: ignore[attr-defined]
+    codes = [client.post("/api/auth/demo").status_code for _ in range(3)]
+    assert codes == [201, 201, 429]
+
+
 def test_auth_endpoints_are_rate_limited(client: TestClient) -> None:
     client.app.state.rate_limiters["auth"].limit = 2  # type: ignore[attr-defined]
     codes = [

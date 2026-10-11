@@ -266,7 +266,8 @@ All variables are documented in [`.env.example`](.env.example).
 | `AUTO_SEED` | API | `true` | Seed catalogue + history on first start (idempotent) |
 | `TRAIN_ON_STARTUP` | API | `true` | Train a model at boot if none is stored |
 | `DEMO_USERS_ARE_ADMIN` | API | `true` | Let demo shoppers open the model dashboard |
-| `DEMO_TTL_HOURS` | API | `72` | When demo shoppers and their data are deleted |
+| `DEMO_TTL_HOURS` | API | `24` | When demo shoppers and their data are deleted |
+| `DEMO_GLOBAL_LIMIT_PER_HOUR` | API | `120` | Cap on new demo shoppers per hour across all visitors |
 | `RETRAIN_COOLDOWN_SECONDS` | API | `120` | Minimum gap between admin retrains (`0` locally) |
 | `TRAIN_THREADS` | API | `1` | Threads `implicit` may use while training |
 | `AUTH_RATE_LIMIT_PER_MINUTE` | API | `20` | Per-client limit on login/register/demo |
@@ -285,7 +286,8 @@ What's in place:
 - Escaped regex search.
 - A CORS allowlist, CSP and security headers, and an open-redirect guard on `?next=`.
 - Non-root containers.
-- Rate limits on auth and event endpoints.
+- Rate limits on auth and event endpoints, plus a global hourly cap on demo sign-ups so a flood of
+  them can't fill the 512 MB free database.
 
 Known trade-offs, deliberately left for later:
 

@@ -52,7 +52,7 @@ longer than about 2.5 s, a "Waking the server…" banner explains the delay unti
 | `model_artifacts` | serialised item factors (`.npz`, ~250 KB), newest 3 kept            |
 | `meta`          | seed version, retrain lock                                              |
 
-Demo users and everything they create carry `expires_at`, and a TTL index cleans them up after 7 days.
+Demo users and everything they create carry `expires_at`, and a TTL index cleans them up after 24 hours, and new demo sign-ups are capped per hour.
 
 ### Recommender
 

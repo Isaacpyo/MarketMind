@@ -77,6 +77,7 @@ def create_app(settings: Settings | None = None, db: Db | None = None) -> FastAP
         app.state.rate_limiters = {
             "auth": RateLimiter(settings.auth_rate_limit_per_minute),
             "events": RateLimiter(settings.events_rate_limit_per_minute),
+            "demo_global": RateLimiter(settings.demo_global_limit_per_hour, window_seconds=3600),
         }
         stop = threading.Event()
         if settings.app_env == "test":
