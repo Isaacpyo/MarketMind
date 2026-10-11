@@ -49,7 +49,7 @@ longer than about 2.5 s, a "Waking the server…" banner explains the delay unti
 | `carts`         | one document per user with line items                                   |
 | `orders`        | immutable order snapshots (prices captured at checkout)                 |
 | `training_runs` | status, params, metrics, dataset stats, timings                         |
-| `model_files`   | GridFS bucket holding the serialised model (`.npz`)                     |
+| `model_artifacts` | serialised item factors (`.npz`, ~250 KB), newest 3 kept            |
 | `meta`          | seed version, retrain lock                                              |
 
 Demo users and everything they create carry `expires_at`, and a TTL index cleans them up after 7 days.
@@ -59,12 +59,13 @@ Demo users and everything they create carry `expires_at`, and a TTL index cleans
 - **Interaction matrix**: user × item, with weights summed per pair (`view` 1, `rec_click` 2,
   `add_to_cart` 4, `purchase` 8), then `log1p`. The `demo_clone` events are excluded from training so
   copied histories don't count twice.
-- **ALS** (`implicit.cpu.als`): defaults are factors 64, regularisation 0.05, alpha 2.0 and 20 iterations.
+- **ALS** (`implicit.cpu.als`): defaults are factors 64, regularisation 0.05, alpha 1.0 and 20 iterations.
   These were tuned on the holdout. Only the item factors are persisted. At request time the user vector
   is recomputed from the user's *current* events (`recalculate_user`), so the feed reacts to browsing
   immediately without a retrain.
-- **Content**: a TF-IDF (1–2-grams, sublinear tf) over title + category + description. It is rebuilt in
-  memory at startup, which takes milliseconds for about 1k products.
+- **Content**: a TF-IDF (1–2-grams, sublinear tf, English stop words) over product titles. Adding the
+  category lowered holdout precision, so it was left out. It is rebuilt in memory at startup, which
+  takes milliseconds for about 1k products.
 - **Hybrid serving**:
   - 0 interactions: popularity ("Trending").
   - 1–2 distinct items: 0.7 × content + 0.3 × popularity (both z-scored).
@@ -74,14 +75,16 @@ Demo users and everything they create carry `expires_at`, and a TTL index cleans
   5 items). It reports precision@10, recall@10 and coverage for Popularity, Content, ALS and Hybrid. In
   the prototype, Popularity scored 0.024, ALS 0.057, Content 0.066 and Hybrid 0.068 (precision@10).
 - **Retraining** runs in a background thread with a lock in Mongo and a cooldown. The final model is
-  refit on all data and stored in GridFS, then hot-swapped in memory.
+  refit on all data and stored in `model_artifacts` (one document, well under the 16 MB limit), then
+  hot-swapped in memory.
 
 ### API surface (prefix `/api`)
 
 `GET /health` · `POST /auth/register|login|demo` · `GET /auth/me` · `GET /products` ·
 `GET /products/{id}` · `GET /categories` · `GET /products/{id}/similar` · `GET /products/{id}/also-bought` ·
-`GET /recommendations/for-you` · `GET /recommendations/trending` · `POST /events` · `GET|PUT|DELETE /cart` ·
-`POST /orders` · `GET /orders` · `GET /admin/metrics` · `GET /admin/runs` · `POST /admin/retrain`
+`GET /recommendations/for-you` · `GET /recommendations/trending` · `POST /events` · `GET /cart` ·
+`POST /cart/items` · `PUT|DELETE /cart/items/{id}` · `POST /orders` · `GET /orders[/{id}]` ·
+`GET /admin/overview` · `GET /admin/runs[/{id}]` · `POST /admin/retrain`
 
 ## Testing
 
