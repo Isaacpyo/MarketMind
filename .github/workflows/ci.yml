@@ -1,0 +1,145 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  OPENBLAS_NUM_THREADS: "1"
+  NEXT_TELEMETRY_DISABLED: "1"
+
+jobs:
+  api:
+    name: API · lint, typecheck, test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.32"
+          enable-cache: true
+          cache-dependency-glob: apps/api/uv.lock
+      - name: Install
+        run: uv sync --frozen
+      - name: Lint (ruff)
+        run: uv run ruff check .
+      - name: Format check (ruff)
+        run: uv run ruff format --check .
+      - name: Typecheck (mypy --strict)
+        run: uv run mypy
+      - name: Unit + API tests (pytest)
+        run: uv run pytest
+      - name: OpenAPI contract is up to date
+        run: uv run python scripts/export_openapi.py --check
+
+  web:
+    name: Web · lint, typecheck, test, build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Install
+        run: npm ci
+      - name: Generated API types match the contract
+        run: npm run gen:api && git diff --exit-code -- src/lib/api/schema.d.ts
+      - name: Lint (eslint)
+        run: npm run lint
+      - name: Typecheck (tsc)
+        run: npm run typecheck
+      - name: Unit tests (vitest)
+        run: npm test
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:8000
+
+  e2e:
+    name: E2E · Playwright smoke test
+    needs: [api, web]
+    runs-on: ubuntu-latest
+    services:
+      mongo:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.adminCommand(\"ping\").ok'"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.32"
+          enable-cache: true
+          cache-dependency-glob: apps/api/uv.lock
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Start API (seeds Mongo and trains on startup)
+        working-directory: apps/api
+        env:
+          MONGODB_URI: mongodb://localhost:27017
+          JWT_SECRET: ci-only-secret-0123456789abcdef0123456789
+          CORS_ORIGINS: http://localhost:3000
+          RETRAIN_COOLDOWN_SECONDS: "0"
+          AUTH_RATE_LIMIT_PER_MINUTE: "200"
+        run: |
+          uv sync --frozen --no-dev
+          nohup uv run --no-dev uvicorn --factory marketmind.main:app_factory --port 8000 > api.log 2>&1 &
+          for i in $(seq 1 120); do
+            if curl -sf http://localhost:8000/api/health | grep -q '"model_version":"'; then echo "API ready with a trained model"; exit 0; fi
+            sleep 1
+          done
+          cat api.log; exit 1
+      - name: Install web deps and browser
+        working-directory: apps/web
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Build web
+        working-directory: apps/web
+        run: npm run build
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:8000
+      - name: Run Playwright
+        working-directory: apps/web
+        run: npx playwright test
+        env:
+          CI: "true"
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            apps/web/playwright-report
+            apps/web/test-results
+            apps/api/api.log
+          retention-days: 7
+
+  docker:
+    name: Docker · compose build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build all images
+        run: docker compose build

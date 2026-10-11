@@ -2,7 +2,6 @@
 name = "marketmind-api"
 version = "0.1.0"
 description = "MarketMind recommendation engine and storefront API"
-readme = "README.md"
 requires-python = ">=3.12,<3.14"
 dependencies = [
     "bcrypt>=4.2",

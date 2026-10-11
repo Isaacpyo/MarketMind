@@ -1,5 +1,11 @@
 import type { NextConfig } from "next";
 
+// Netlify sets NETLIFY=true and CONTEXT=production for production deploys. Shipping a bundle
+// that points at localhost would look like a broken site, so fail the build instead.
+if (process.env.NETLIFY === "true" && process.env.CONTEXT === "production" && !process.env.NEXT_PUBLIC_API_URL) {
+  throw new Error("NEXT_PUBLIC_API_URL must be set in Netlify's environment variables (the Render API URL).");
+}
+
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 const isProd = process.env.NODE_ENV === "production";
 

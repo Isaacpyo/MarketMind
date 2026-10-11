@@ -1,0 +1,37 @@
+# Render Blueprint for the MarketMind API (free web service, Docker runtime).
+# Render dashboard -> New -> Blueprint -> pick this repo. You'll be asked for MONGODB_URI.
+services:
+  - type: web
+    name: marketmind-api
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: ./apps/api
+    healthCheckPath: /api/health
+    autoDeploy: true
+    buildFilter:
+      paths:
+        - apps/api/**
+        - render.yaml
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: MONGODB_URI
+        sync: false # paste your MongoDB Atlas connection string when prompted
+      - key: MONGODB_DB
+        value: marketmind
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CORS_ORIGINS
+        value: https://marketmind.temitopeagbola.com
+      - key: CORS_ORIGIN_REGEX
+        value: ^https://([a-z0-9-]+--)?marketmind\.netlify\.app$
+      - key: TRUST_FORWARDED_FOR
+        value: "true"
+      - key: RETRAIN_COOLDOWN_SECONDS
+        value: "120"
+      - key: TRAIN_THREADS
+        value: "1"
+      - key: DEMO_USERS_ARE_ADMIN
+        value: "true"

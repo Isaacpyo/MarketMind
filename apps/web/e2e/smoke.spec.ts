@@ -92,3 +92,18 @@ test("admin dashboard shows holdout metrics and retrains the model", async ({ pa
   await expect(row).toContainText("it=10");
   await expect(row).toContainText("Succeeded", { timeout: 60_000 });
 });
+
+test("explains a sleeping free-tier server while it wakes up @responsive", async ({ page }) => {
+  // Simulate a cold start: every API call made in the first 5 seconds hangs until then.
+  const wakesAt = Date.now() + 5_000;
+  await page.route("**/api/**", async (route) => {
+    const wait = wakesAt - Date.now();
+    if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+    await route.continue();
+  });
+  await page.goto("/");
+  const banner = page.getByText("Waking the server…");
+  await expect(banner).toBeVisible();
+  await expect(banner).toBeHidden({ timeout: 30_000 });
+  await expect(page.getByRole("region", { name: "Trending now" }).getByRole("link").first()).toBeVisible();
+});
