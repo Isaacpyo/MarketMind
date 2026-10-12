@@ -1,0 +1,80 @@
+[project]
+name = "marketmind-api"
+version = "0.1.0"
+description = "MarketMind recommendation engine and storefront API"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "bcrypt>=4.2",
+    "email-validator>=2.2",
+    "fastapi>=0.115",
+    "implicit>=0.7.2",
+    "numpy>=2.0",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "pyjwt>=2.9",
+    "pymongo>=4.10",
+    "scikit-learn>=1.5",
+    "scipy>=1.14",
+    "uvicorn[standard]>=0.32",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.27",
+    "mongomock>=4.2",
+    "mypy>=1.13",
+    "pytest>=8.3",
+    "ruff>=0.8",
+    "scipy-stubs>=1.14",
+]
+seed = [
+    "openpyxl>=3.1",
+    "pandas>=2.2",
+]
+
+[tool.uv]
+default-groups = ["dev"]
+package = false
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "N", "S", "SIM", "RUF", "PL", "C4", "PT"]
+ignore = [
+    "PLR0913", # FastAPI handlers take many injected params
+    "PLR0917",
+    "PLR2004", # magic values in tests and thresholds are clearer inline
+    "S105",    # false positives on "token_type" style literals
+    "RUF001",  # en dash in user-facing copy is intentional
+    "RUF002",
+    "RUF003",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S106", "S311", "PLR2004"]
+"scripts/**" = ["PLR0915"]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Path", "fastapi.Body"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+packages = ["marketmind", "tests"]
+
+[[tool.mypy.overrides]]
+module = ["implicit", "implicit.*", "sklearn", "sklearn.*", "mongomock", "mongomock.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"
+filterwarnings = [
+    "ignore::DeprecationWarning:mongomock.*",
+    "ignore:.*OpenBLAS.*:RuntimeWarning",
+    "ignore:Using `httpx` with `starlette.testclient` is deprecated",
+]

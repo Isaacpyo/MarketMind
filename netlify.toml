@@ -1,7 +1,15 @@
+# Netlify builds the Next.js storefront in apps/web (the API is deployed to Render).
 [build]
-  base = "frontend"
+  base = "apps/web"
   command = "npm run build"
   publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "22"
+  NEXT_TELEMETRY_DISABLED = "1"
+
+# NEXT_PUBLIC_API_URL must be set in the Netlify UI (Site configuration -> Environment
+# variables) to the Render service URL; production builds fail fast if it is missing.
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
