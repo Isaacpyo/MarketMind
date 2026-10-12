@@ -26,7 +26,7 @@ services:
       - key: CORS_ORIGINS
         value: https://marketmind.temitopeagbola.com
       - key: CORS_ORIGIN_REGEX
-        value: ^https://([a-z0-9-]+--)?marketmind\.netlify\.app$
+        value: ^https://([a-z0-9-]+--)?marketmind2\.netlify\.app$
       - key: TRUST_FORWARDED_FOR
         value: "true"
       - key: RETRAIN_COOLDOWN_SECONDS
