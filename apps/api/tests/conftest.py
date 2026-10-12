@@ -126,6 +126,12 @@ def write_seed_dir(path: Path) -> Path:
     return path
 
 
+@pytest.fixture(autouse=True)
+def _ignore_local_env_file(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Tests must not depend on a developer's apps/api/.env (the README has you create one)."""
+    monkeypatch.setitem(Settings.model_config, "env_file", None)
+
+
 @pytest.fixture
 def seed_dir(tmp_path: Path) -> Path:
     return write_seed_dir(tmp_path / "seed")

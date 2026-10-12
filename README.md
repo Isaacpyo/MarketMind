@@ -1,80 +1,118 @@
 # MarketMind
 
-[![CI](https://github.com/Isaacpyo/MarketMind/actions/workflows/ci.yml/badge.svg)](https://github.com/Isaacpyo/MarketMind/actions/workflows/ci.yml)
+[![CI](https://github.com/temitopeagbola/MarketMind/actions/workflows/ci.yml/badge.svg)](https://github.com/temitopeagbola/MarketMind/actions/workflows/ci.yml)
 
-**Live demo: https://marketmind.temitopeagbola.com** (click **Try the demo**. The API runs on a free
-tier that sleeps, so the first request can take 30–60 seconds, and the page tells you when that's
-happening.)
+An e-commerce storefront with an explainable recommendation engine. It's a portfolio demo for anyone
+who wants to see, end to end, how an implicit-feedback recommender is built, served and evaluated.
 
-MarketMind is a working e-commerce storefront built around a recommendation engine you can inspect.
-It serves 1,000 real products and 142k real purchases from a UK gift retailer (the UCI Online Retail
-dataset). Every shopper action is recorded as implicit feedback: views, recommendation clicks, cart
-adds and purchases. The personalised **For you** feed is a hybrid of **implicit ALS** collaborative
-filtering and **TF-IDF content similarity**. It handles brand-new shoppers with popularity and
-content-based cold start, and it recomputes your user vector on every request, so it changes as you
-browse. Every card explains why it was picked. An admin dashboard shows the model's offline metrics on
-a temporal holdout, compared against baselines, and lets you retrain with different hyperparameters.
+**Production:** https://marketmind.temitopeagbola.com. Netlify deploys the web app from `main`, and the
+API runs on Render's free tier.
 
 | For you feed | Model admin |
 |---|---|
 | ![Personalised feed with explanations](docs/screenshots/for-you.png) | ![Holdout metrics and retraining](docs/screenshots/admin.png) |
 
-## Features
+## Overview
 
-- **Storefront**: search, category filters, sorting, pagination, product pages, cart, checkout (an
-  order is recorded and no payment is taken), order history, and sign-up/sign-in.
-- **One-click demo**: **Try the demo** creates an *isolated* shopper whose history is cloned from a
-  real 2011 customer. Visitors never share a cart, and demo data expires through a MongoDB TTL index.
-- **Implicit-feedback tracking**: the client can send `view` and `rec_click` events (views are
-  de-duplicated). `add_to_cart` and `purchase` events are only written by the server, so they can't be
-  forged.
-- **For you feed** has three strategies, chosen by how much we know about the shopper:
-  1. **Popularity** for brand-new shoppers.
-  2. **Cold start** after 1–2 items: TF-IDF similarity to what you touched, blended with popularity.
-  3. **Hybrid** from 3 items: ALS and content blended. The ALS user vector is recomputed from live
-     events with `recalculate_user`, so shoppers who signed up after the last training run still get
-     collaborative recommendations.
-- **Product pages** have two rails: **Similar items** (TF-IDF cosine) and **Customers also bought**
-  (cosine between ALS item factors).
-- **Model admin page** shows the following:
-  - precision@10, recall@10 and catalogue coverage for Popularity, Content, ALS and the served Hybrid,
-    measured on a temporal holdout
-  - training-run history
-  - activity counters
-  - a retrain form with validated hyperparameters. Training runs in the background, behind a Mongo
-    lock and a cooldown, and the new model is hot-swapped in.
-- **Free-tier aware UI**: a health probe plus slow-request detection shows a *"Waking the server…"*
-  banner with elapsed time, and failed queries re-run automatically once the API is up.
-- **Quality**:
+Most shops show the same bestsellers to everyone and can't say why they recommend something. MarketMind
+loads 1,000 real products and about 142k customer–product purchases from a UK gift retailer (the UCI
+Online Retail dataset). Every shopper action is recorded as implicit feedback: views, recommendation
+clicks, cart adds and purchases. From those signals the API builds a personalised **For you** feed. It
+blends **ALS collaborative filtering** (the `implicit` library) with **TF-IDF content similarity**,
+and uses popularity for shoppers it knows nothing about yet. The shopper's vector is recomputed on
+every request, so the feed changes as you browse, and each recommendation says why it was picked. An
+admin page shows how each model scores on a temporal holdout and lets you retrain with different
+hyperparameters.
+
+## Key features
+
+- **Storefront**
+  - search, category filter, sorting and pagination
+  - product pages
+  - cart and checkout (an order is recorded; no payment is taken)
+  - order history
+  - sign-up and sign-in
+- **One-click demo login.** *Try the demo* creates an isolated shopper whose purchase history is
+  copied from a real customer in the dataset.
+  - Demo shoppers never share a cart.
+  - Their data expires through a MongoDB TTL index.
+  - New demo sign-ups are capped per hour.
+- **Implicit-feedback tracking**
+  - The browser can send `view` and `rec_click` events. Repeat views are de-duplicated.
+  - `add_to_cart` and `purchase` are written by the server only, so the browser can't fake them.
+- **For you feed.** The strategy depends on how much the API knows about the shopper:
+  1. **Popularity** when there's no history.
+  2. **Cold start** after 1–2 items: TF-IDF similarity to those items, blended with popularity.
+  3. **Hybrid** from 3 items: ALS and TF-IDF blended. The ALS user vector is recalculated from live
+     events, so new shoppers get collaborative recommendations without waiting for a retrain.
+- **Product page rails.** *Similar items* uses TF-IDF cosine similarity. *Customers also bought*
+  uses cosine similarity between ALS item factors.
+- **Model admin page**
+  - precision@10, recall@10 and catalogue coverage for Popularity, Content, ALS and the served Hybrid
+  - training-run history and activity counters
+  - a retrain form with validated hyperparameters
+  - training runs in a background thread behind a MongoDB lock and a cooldown, and the new model is
+    swapped in without a restart
+- **Free-tier aware UI.** A health probe and slow-request detection show a *"Waking the server…"*
+  banner while the sleeping API starts. Failed requests re-run once it's up.
+- **Quality**
   - loading, empty and error states on every view
-  - responsive down to 375px
-  - labelled controls, visible focus rings, a skip link and live regions
+  - layout works down to 375px wide
+  - labelled controls, focus rings, a skip link and live regions
   - strict TypeScript and `mypy --strict`
-  - Pydantic validation at the API boundary
+  - Pydantic validation on every request
   - unit, API, component and Playwright end-to-end tests in CI
+
+## Tech stack
+
+| Layer | Choice |
+|---|---|
+| Web app | Next.js 16 (App Router), React 19, TypeScript, TanStack Query, Tailwind CSS v4, lucide icons |
+| API | Python 3.12, FastAPI, Pydantic v2, pymongo, uvicorn |
+| Recommender | `implicit` (ALS), scikit-learn (TF-IDF), NumPy, SciPy |
+| Database | MongoDB (`mongo:7` locally, MongoDB Atlas in production) |
+| Auth | Email + password (bcrypt) and HS256 JWT bearer tokens |
+| API contract | OpenAPI exported from FastAPI. TypeScript types are generated with `openapi-typescript` |
+| Tests | pytest + mongomock, Vitest + Testing Library, Playwright |
+| Hosting | Netlify (web), Render free Docker web service (API), MongoDB Atlas (database) |
+| CI | GitHub Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) |
+
+No third-party API keys are needed. The dataset is committed and all machine learning runs inside the
+API process.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
     subgraph Netlify
-        W["Next.js storefront<br/>(client-side data fetching)"]
+        W["Next.js storefront<br/>(fetches data in the browser)"]
     end
-    subgraph Render["Render free web service · 512 MB"]
+    subgraph Render["Render web service"]
         A["FastAPI"]
-        E["RecommenderEngine<br/>TF-IDF + ALS item factors (in memory)"]
+        E["RecommenderEngine<br/>TF-IDF + ALS item factors in memory"]
         T["Training thread<br/>holdout eval → refit → persist"]
         A --> E
-        A -- "POST /admin/retrain" --> T
-        T -- "hot-swap" --> E
+        A -- "POST /api/admin/retrain" --> T
+        T -- "swap in new model" --> E
     end
-    M[("MongoDB Atlas M0<br/>products · users · events · carts<br/>orders · training_runs · model_artifacts")]
-    S[["UCI Online Retail seed<br/>1k products · 142k purchases"]]
+    M[("MongoDB<br/>products · users · events · carts<br/>orders · training_runs · model_artifacts · meta")]
+    S[["Seed files in apps/api/data/seed<br/>(UCI Online Retail subset)"]]
     W -- "HTTPS JSON + Bearer JWT" --> A
     A <--> M
     T -- "item factors (.npz)" --> M
-    S -- "first start (idempotent)" --> M
+    S -- "loaded on first start" --> M
 ```
+
+- **The web app fetches all data in the browser.** Pages render straight away and show the wake-up
+  banner if the free-tier API is asleep.
+- **The API owns everything else**:
+  - creates its MongoDB indexes
+  - seeds the database on first start
+  - loads the newest stored model
+  - trains one if none exists
+- **Models are stored in MongoDB** (`model_artifacts`) because Render's free disk is wiped on restart.
+- **The web app's TypeScript types are generated from the API's OpenAPI schema**
+  (`packages/api-contract/openapi.json`), so the two can't drift apart unnoticed.
 
 How a **For you** request is served:
 
@@ -85,31 +123,200 @@ flowchart TD
     N -- "0" --> POP["Popularity<br/>(distinct buyers)"]
     N -- "1–2" --> CS["Cold start<br/>0.7·z(TF-IDF profile) + 0.3·z(popularity)"]
     N -- "≥ 3" --> HY["Hybrid<br/>0.5·z(ALS, user vector recalculated now) + 0.5·z(TF-IDF)"]
-    POP --> X["Drop items already seen, bought or in cart → top k<br/>+ per-item reason (“Because you bought …”)"]
+    POP --> X["Drop items already seen or in cart → top k<br/>+ per-item reason (“Because you bought …”)"]
     CS --> X
     HY --> X
 ```
 
-**Repository layout**
+### API
+
+All routes are under `/api`. Interactive docs are at `/docs` while the API is running.
+
+| Area | Routes |
+|---|---|
+| Health | `GET /health` |
+| Auth | `POST /auth/register`, `POST /auth/login`, `POST /auth/demo`, `GET /auth/me` |
+| Catalogue | `GET /products`, `GET /products/{id}`, `GET /categories`, `GET /products/{id}/similar`, `GET /products/{id}/also-bought` |
+| Recommendations | `GET /recommendations/for-you` (signed in), `GET /recommendations/trending` |
+| Events | `POST /events` (signed in) |
+| Cart and orders | `GET /cart`, `POST /cart/items`, `PUT /cart/items/{id}`, `DELETE /cart/items/{id}`, `POST /orders`, `GET /orders`, `GET /orders/{id}` (all signed in) |
+| Admin | `GET /admin/overview`, `GET /admin/runs`, `GET /admin/runs/{id}`, `POST /admin/retrain` (admin role) |
+
+## Project structure
 
 ```
-apps/api/                FastAPI service (Python 3.12, uv)
-  marketmind/recsys/     interactions, split, metrics, content (TF-IDF), als, hybrid, evaluate
-  marketmind/routers/    auth, products, recommendations, events, cart, orders, admin, health
-  marketmind/training.py training pipeline, model persistence, Mongo lock and cooldown
-  data/seed/             committed seed (products.json, interactions.csv.gz, demo_profile.json)
-  scripts/               build_seed.py (from the raw UCI file), export_openapi.py
-apps/web/                Next.js 16 storefront (React 19, TanStack Query, Tailwind v4)
-  e2e/                   Playwright smoke tests
-packages/api-contract/   openapi.json, the contract the web app's TS types are generated from
-docs/PLAN.md             design notes
+.github/workflows/   CI: API checks, web checks, Playwright e2e, docker compose build
+apps/api/            FastAPI service (Python, managed with uv)
+  marketmind/        app code: routers/, recsys/ (TF-IDF, ALS, hybrid, metrics), training, seeding
+  data/seed/         committed seed data: products, purchase history, demo shopper profile
+  scripts/           build_seed.py (rebuild seed from the raw dataset), export_openapi.py
+  tests/             pytest suite (unit + API tests on an in-memory MongoDB)
+apps/web/            Next.js storefront
+  src/app/           pages: home, products, cart, orders, login, admin
+  src/components/    UI components
+  src/lib/           API client, generated API types, auth, data hooks, helpers
+  e2e/               Playwright smoke tests
+packages/api-contract/  openapi.json shared by the API and the web app
+docs/                design notes (PLAN.md) and screenshots
+docker-compose.yml   runs MongoDB + API + web locally
+render.yaml          Render Blueprint for the API
+netlify.toml         Netlify build settings for apps/web
+.env.example         every environment variable, documented
 ```
 
-## Results
+## Getting started
 
-From the startup training run on the seed data. The holdout hides the most recent 20% of items for
-each of 2,000 sampled shoppers who have at least 5 items. Every model ranks all 1,000 products,
-excluding the shopper's training items.
+### Prerequisites
+
+- **Docker** with Docker Compose v2. This is the only requirement for the one-command setup.
+- To run the apps without Docker:
+  - **Python 3.12** (`apps/api/.python-version`; the project supports `>=3.12,<3.14`)
+  - **[uv](https://docs.astral.sh/uv/)** (CI uses 0.11.32)
+  - **Node.js 20.9 or newer** (`engines` in `apps/web/package.json`; CI, Docker and Netlify use Node 22)
+  - **MongoDB 7**, either in a container or an Atlas cluster
+
+### Quick start (Docker)
+
+```bash
+git clone https://github.com/temitopeagbola/MarketMind.git
+cd MarketMind
+docker compose up --build
+```
+
+- Web app: http://localhost:3000
+- API docs: http://localhost:8000/docs
+
+On first start the API seeds MongoDB and trains a model, which takes a few seconds. Until then, the
+web app shows a "loading" banner. Stop with `docker compose down`. `docker compose down -v` also
+deletes the local database volume.
+
+### Running the apps without Docker
+
+1. **Start MongoDB.** Or point `MONGODB_URI` at an Atlas cluster instead.
+
+   ```bash
+   docker run -d --name marketmind-mongo -p 27017:27017 mongo:7
+   ```
+
+2. **Set up and start the API.**
+
+   ```bash
+   cp .env.example apps/api/.env   # the API reads apps/api/.env; the defaults work locally
+   cd apps/api
+   uv sync
+   uv run uvicorn --factory marketmind.main:app_factory --reload --port 8000
+   ```
+
+3. **Set up and start the web app** (in another terminal).
+
+   ```bash
+   cd apps/web
+   npm ci
+   npm run dev                     # http://localhost:3000
+   ```
+
+   The web app calls `NEXT_PUBLIC_API_URL`, which defaults to the local API. To point it elsewhere,
+   set it in `apps/web/.env.local`.
+
+### Environment variables
+
+All variables are listed with comments in [`.env.example`](.env.example). `.env` and `.env.*` files
+are gitignored; never commit real values.
+
+| Variable | Used by | Purpose |
+|---|---|---|
+| `APP_ENV` | API | `development`, `test` or `production`. Production refuses to start with a weak `JWT_SECRET`. |
+| `MONGODB_URI` | API | MongoDB connection string. |
+| `MONGODB_DB` | API | Database name. |
+| `JWT_SECRET` | API | Secret for signing session tokens. Must be at least 32 random characters in production. |
+| `JWT_TTL_MINUTES` | API | Session lifetime. |
+| `CORS_ORIGINS` | API | Comma-separated browser origins allowed to call the API. |
+| `CORS_ORIGIN_REGEX` | API | Optional regex for extra allowed origins, such as Netlify deploy previews. |
+| `AUTO_SEED` | API | Seed the catalogue and purchase history on first start. |
+| `TRAIN_ON_STARTUP` | API | Train a model at startup when none is stored. |
+| `DEMO_USERS_ARE_ADMIN` | API | Give demo shoppers the admin role so they can open the model dashboard. |
+| `DEMO_TTL_HOURS` | API | How long demo shoppers and their data are kept. |
+| `DEMO_GLOBAL_LIMIT_PER_HOUR` | API | Cap on new demo shoppers per hour across all visitors. |
+| `RETRAIN_COOLDOWN_SECONDS` | API | Minimum gap between admin-triggered retrains. |
+| `TRAIN_THREADS` | API | Number of threads `implicit` may use while training. |
+| `AUTH_RATE_LIMIT_PER_MINUTE` | API | Per-client limit on register, login and demo requests. |
+| `EVENTS_RATE_LIMIT_PER_MINUTE` | API | Per-shopper limit on tracked events. |
+| `TRUST_FORWARDED_FOR` | API | Behind a proxy (Render), key rate limits on the right-most `X-Forwarded-For` entry. |
+| `NEXT_PUBLIC_API_URL` | Web, at build time | Public URL of the API, built into the browser bundle. |
+
+## Scripts
+
+There are no database migrations. The API creates its indexes and seeds data on startup, and both
+steps are idempotent.
+
+**API** (run from `apps/api`)
+
+| Command | What it does |
+|---|---|
+| `uv sync` | Install dependencies (including dev tools). |
+| `uv run uvicorn --factory marketmind.main:app_factory --reload --port 8000` | Run the API with auto-reload. |
+| `uv run pytest` | Run the test suite. |
+| `uv run ruff check .` / `uv run ruff format --check .` | Lint and check formatting. |
+| `uv run mypy` | Type-check (strict). |
+| `uv run python scripts/export_openapi.py` | Regenerate `packages/api-contract/openapi.json`. Add `--check` to only verify it's current. |
+| `uv run --group seed python scripts/build_seed.py` | Rebuild `data/seed/` from the raw UCI dataset. The download is about 23 MB. |
+
+**Web** (run from `apps/web`)
+
+| Command | What it does |
+|---|---|
+| `npm run dev` | Start the dev server. |
+| `npm run build` / `npm run start` | Production build and server. |
+| `npm run lint` | ESLint. |
+| `npm run typecheck` | TypeScript (`tsc --noEmit`). |
+| `npm test` | Vitest unit and component tests (`npm run test:watch` for watch mode). |
+| `npm run test:e2e` | Playwright end-to-end tests (see [Testing](#testing)). |
+| `npm run gen:api` | Regenerate `src/lib/api/schema.d.ts` from the OpenAPI contract. |
+
+## Testing
+
+```bash
+# API: unit tests and API tests against an in-memory MongoDB (mongomock)
+cd apps/api && uv run pytest
+
+# Web: unit and component tests
+cd apps/web && npm test
+
+# End-to-end: Playwright against the full stack
+docker compose up -d --build
+cd apps/web
+npx playwright install chromium
+E2E_BASE_URL=http://localhost:3000 npm run test:e2e
+```
+
+The e2e suite covers:
+- the demo shopper's flow from feed to product, cart and order
+- the cold-start feed for a new account
+- retraining from the admin page
+- the "waking server" banner
+- desktop and 375px-wide viewports
+
+It expects `RETRAIN_COOLDOWN_SECONDS=0`, which `docker-compose.yml` sets. Without `E2E_BASE_URL`,
+Playwright starts the web app itself with `npm run start`. That needs `npm run build` first and an API
+on port 8000; this is how CI runs it.
+
+CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs on every push and pull request:
+
+- **API:** ruff, ruff format check, mypy, pytest and the OpenAPI drift check.
+- **Web:** generated-types drift check, ESLint, tsc, Vitest and the production build.
+- **E2E:** Playwright against MongoDB and the API.
+- **Docker:** `docker compose build`.
+
+### Model evaluation
+
+The admin page reports these metrics for every training run:
+
+- Each shopper with at least 5 items has the most recent 20% of their items held out. Up to 2,000 of
+  these shoppers are sampled.
+- Each model ranks all products, excluding the shopper's training items, and the top 10 are scored.
+- The evaluation calls the same `HybridRecommender` code that serves shoppers.
+
+On the committed seed data, a startup training run during development gave these results:
 
 | Model | Precision@10 | Recall@10 | Catalogue coverage |
 |---|---:|---:|---:|
@@ -118,201 +325,97 @@ excluding the shopper's training items.
 | ALS (`implicit`) | 5.6% | 12.6% | 81.9% |
 | **Hybrid (served)** | **6.6%** | **13.9%** | **86.1%** |
 
-What the numbers show:
+Content similarity is strong on this catalogue because gift buyers collect matching ranges (for example
+"Jumbo Bag Red Retrospot" and "Lunch Bag Red Retrospot"). ALS adds signal across ranges, and the blend
+beats both. TF-IDF uses product titles only, because adding the category name lowered content
+precision on this holdout (see `apps/api/marketmind/recsys/content.py`).
 
-- Shoppers hold out about 9 items each from a catalogue of 1,000, so a random ranking scores about 1%
-  precision@10.
-- The hybrid is **2.8× the popularity baseline**.
-- Content similarity is unusually strong on this catalogue. Gift buyers collect matching ranges (for
-  example, "Jumbo Bag Red Retrospot" leads to "Lunch Bag Red Retrospot"), which TF-IDF on titles
-  picks up.
-- ALS adds signal that crosses ranges, and the blend beats both components on every metric.
-- Two tuning choices came from the holdout:
-  - Adding the category name to the TF-IDF text *lowered* content precision (6.6% → 5.7%), so only
-    titles are used.
-  - alpha 1.0 balances precision and coverage: 0.5 gave slightly higher ALS precision but much
-    lower coverage (74% vs 84%), and 2.0 did the reverse.
-- The admin page computes these numbers through the same `HybridRecommender` code path that serves
-  shoppers.
+## Deployment
 
-## Stack and substitutions
+The repo deploys to three free-tier services: the API to Render, the web app to Netlify, and the
+database to MongoDB Atlas.
 
-| Layer | Choice |
-|---|---|
-| API | Python 3.12, FastAPI, Pydantic v2, pymongo, PyJWT, bcrypt |
-| Recommender | `implicit` (ALS), scikit-learn (TF-IDF), NumPy/SciPy |
-| Database | MongoDB (Atlas M0 in production, `mongo:7` locally) |
-| Web | Next.js 16, React 19, TanStack Query, Tailwind CSS v4, lucide icons |
-| Tests | pytest + mongomock, Vitest + Testing Library, Playwright |
-| Hosting | Netlify (web), Render free Docker web service (API), MongoDB Atlas M0 |
-
-**Swaps and why:**
-
-- **TensorFlow → `implicit` ALS** (the planned swap). Render's free instance has **512 MB of RAM** and
-  about 0.1 CPU:
-  - Importing TensorFlow alone uses roughly 400–600 MB of resident memory before any model exists, and
-    its wheels add about 500 MB to the image.
-  - `implicit` is a small C++/Cython library built for exactly this problem: collaborative filtering
-    on implicit feedback, i.e. weighted matrix factorisation in the style of Hu, Koren & Volinsky
-    (2008).
-  - Measured: the whole API process peaks at **about 250 MB while seeding and training** and idles at
-    **about 140 MB**. A full train with holdout evaluation takes about 5 s on one thread.
-  - It also allows a useful serving trick. ALS user vectors can be solved in closed form from item
-    factors, so only the item factors (about 250 KB) are persisted and each request recomputes the
-    shopper's vector from live events.
-- **Model storage in MongoDB, not on disk.** Render's free filesystem is ephemeral, so the serialised
-  factors are one document in `model_artifacts`, well under the 16 MB document limit.
-- **No Postgres or Redis.** The specified stack is MongoDB only, and the free-tier deployment is a
-  single instance. The rate limiter is in-process; Redis (Upstash) is the documented next step if the
-  API is scaled out.
-- **Training in a background thread** instead of a separate worker, because a free tier can't run a
-  second always-on service. A Mongo lock keeps it to one run at a time, and a stale-lock timeout and
-  restart recovery handle crashes.
-- **Generated product art.** The dataset has no images, so each product gets a deterministic tile:
-  the category's icon and hue, with a per-SKU variation.
-
-No third-party API keys are needed: the dataset is committed and all ML runs in-process.
-
-## Run it locally
-
-**One command** (needs Docker):
-
-```bash
-docker compose up --build
-# web  http://localhost:3000   ·   API docs http://localhost:8000/docs
-```
-
-On first start the API seeds MongoDB (about 10 s locally) and trains a model (about 5 s). Until that
-finishes, the UI shows the "server is loading" banner.
-
-**Without Docker** (Python 3.12 + [uv](https://docs.astral.sh/uv/), Node 22):
-
-```bash
-docker run -d --name marketmind-mongo -p 27017:27017 mongo:7    # or point MONGODB_URI at Atlas
-
-cd apps/api
-uv sync
-uv run uvicorn --factory marketmind.main:app_factory --reload --port 8000
-
-cd apps/web
-npm ci
-npm run dev                                                      # http://localhost:3000
-```
-
-**Tests and checks** (the same commands CI runs):
-
-```bash
-# API
-cd apps/api
-uv run ruff check . && uv run ruff format --check .
-uv run mypy
-uv run pytest
-
-# Web
-cd apps/web
-npm run lint && npm run typecheck && npm test && npm run build
-
-# End-to-end against the real stack
-docker compose up -d --build
-cd apps/web
-npx playwright install chromium
-E2E_BASE_URL=http://localhost:3000 npm run test:e2e
-```
-
-**Changing the API?** Regenerate the contract and the web types (CI fails if they drift):
-
-```bash
-cd apps/api && uv run python scripts/export_openapi.py
-cd apps/web && npm run gen:api
-```
-
-**Rebuilding the seed** from the raw UCI file (downloads about 23 MB and takes about 1 minute):
-`cd apps/api && uv run --group seed python scripts/build_seed.py`. The output is deterministic.
-
-## Deploy
-
-1. **MongoDB Atlas (free M0)**
-   - Create a cluster. AWS `eu-central-1` (Frankfurt) is next to the Render region in `render.yaml`.
+1. **MongoDB Atlas**
+   - Create an M0 cluster. AWS `eu-central-1` sits next to the Render region (`frankfurt`) set in
+     `render.yaml`.
    - Add a database user.
    - Under *Network Access*, allow `0.0.0.0/0`, because Render's free tier has no static outbound IPs.
    - Copy the `mongodb+srv://…` connection string.
 2. **Render (API)**
-   - *New → Blueprint*, pick this repo. Render reads [`render.yaml`](render.yaml).
-   - Paste `MONGODB_URI` when prompted. `JWT_SECRET` is generated for you.
-   - On first boot the API seeds Atlas and trains a model in the background, which takes about a
-     minute on the free CPU. `/api/health` reports `ready` and `model_version` as this progresses.
-   - Note the service URL, e.g. `https://marketmind-api.onrender.com`.
+   - [`render.yaml`](render.yaml) is a Blueprint for a free Docker web service named `marketmind-api`.
+     It uses `apps/api/Dockerfile` with health check `/api/health`.
+   - In Render, choose *New → Blueprint* and select this repo, then enter `MONGODB_URI` when prompted.
+   - `JWT_SECRET` is generated by Render. The other variables are set in the Blueprint.
+   - On first boot the API seeds the database and trains a model in the background. `/api/health`
+     reports `ready` and `model_version` as this progresses.
 3. **Netlify (web)**
-   - The existing site already builds from [`netlify.toml`](netlify.toml) (`base = "apps/web"`).
-   - Set `NEXT_PUBLIC_API_URL` to the Render URL under *Site configuration → Environment variables*.
+   - [`netlify.toml`](netlify.toml) builds `apps/web` with the Next.js runtime.
+   - The production site `marketmind2` serves `marketmind.temitopeagbola.com` and deploys from `main`.
+   - Set `NEXT_PUBLIC_API_URL` to the Render service URL in the site's environment variables.
      Production builds fail on purpose if it's missing.
-   - Redeploy, or merge to `main`.
-4. If the Netlify site's `*.netlify.app` subdomain isn't `marketmind`, update `CORS_ORIGIN_REGEX` on
-   Render so deploy previews can call the API. The custom domain is already in `CORS_ORIGINS`.
+   - Deploy previews are allowed to call the API through `CORS_ORIGIN_REGEX` in `render.yaml`.
 
-## Environment variables
+### Why `implicit` instead of TensorFlow
 
-All variables are documented in [`.env.example`](.env.example).
+The original plan used TensorFlow. It was swapped for `implicit` ALS so the API fits Render's 512 MB
+free instance:
 
-| Variable | Where | Default | Purpose |
-|---|---|---|---|
-| `APP_ENV` | API | `development` | `production` enforces a strong `JWT_SECRET` |
-| `MONGODB_URI` | API | `mongodb://localhost:27017` | Mongo connection string (Atlas SRV in production) |
-| `MONGODB_DB` | API | `marketmind` | Database name |
-| `JWT_SECRET` | API | dev-only value | HMAC key for session tokens (≥ 32 chars in production) |
-| `JWT_TTL_MINUTES` | API | `4320` | Session lifetime |
-| `CORS_ORIGINS` | API | `http://localhost:3000` | Comma-separated allowed browser origins |
-| `CORS_ORIGIN_REGEX` | API | none | Extra allowed origins, e.g. Netlify deploy previews |
-| `AUTO_SEED` | API | `true` | Seed catalogue + history on first start (idempotent) |
-| `TRAIN_ON_STARTUP` | API | `true` | Train a model at boot if none is stored |
-| `DEMO_USERS_ARE_ADMIN` | API | `true` | Let demo shoppers open the model dashboard |
-| `DEMO_TTL_HOURS` | API | `24` | When demo shoppers and their data are deleted |
-| `DEMO_GLOBAL_LIMIT_PER_HOUR` | API | `120` | Cap on new demo shoppers per hour across all visitors |
-| `RETRAIN_COOLDOWN_SECONDS` | API | `120` | Minimum gap between admin retrains (`0` locally) |
-| `TRAIN_THREADS` | API | `1` | Threads `implicit` may use while training |
-| `AUTH_RATE_LIMIT_PER_MINUTE` | API | `20` | Per-client limit on login/register/demo |
-| `EVENTS_RATE_LIMIT_PER_MINUTE` | API | `120` | Per-shopper limit on tracked events |
-| `TRUST_FORWARDED_FOR` | API | `false` | Key rate limits on the proxy-appended client IP (Render: `true`) |
-| `NEXT_PUBLIC_API_URL` | Web (build time) | `http://localhost:8000` | Public API base URL baked into the bundle |
+- `implicit` is a small library built for collaborative filtering on implicit feedback.
+- ALS user vectors can be solved directly from the item factors. So only the item factors are stored,
+  and each request recomputes the shopper's vector from their live events.
+- Measured locally during development:
+  - the API peaked at about 250 MB of memory while seeding and training, and idled at about 150 MB
+  - a full train with holdout evaluation took about 5 seconds on one thread
 
-## Security notes and known trade-offs
+## Security notes
 
 What's in place:
 
-- bcrypt password hashing, with a SHA-256 pre-hash so long passphrases aren't truncated at 72 bytes.
-- Constant-time handling of unknown emails at login.
-- HS256 JWTs. A real secret is required in production.
-- Request models use `extra="forbid"`, so clients can't set their own `role`.
-- Escaped regex search.
-- A CORS allowlist, CSP and security headers, and an open-redirect guard on `?next=`.
-- Non-root containers.
-- Rate limits on auth and event endpoints, plus a global hourly cap on demo sign-ups so a flood of
-  them can't fill the 512 MB free database.
+- Passwords are hashed with bcrypt, with a SHA-256 pre-hash so passphrases over 72 bytes aren't
+  truncated.
+- Unknown emails are checked against a dummy hash, so login timing doesn't reveal which accounts exist.
+- Request models reject unknown fields, so a client can't set its own `role`.
+- Search input is escaped before it reaches MongoDB.
+- The API has a CORS allowlist and security headers. The web app sets a Content-Security-Policy and
+  guards against open redirects in `?next=`.
+- Containers run as non-root users.
+- Auth and event endpoints are rate-limited.
 
-Known trade-offs, deliberately left for later:
+Known trade-offs:
 
-- **The token is kept in `localStorage`**, because the web app and API live on different sites, so
-  same-site cookies aren't available. The CSP and React's escaping limit XSS exposure. The stronger
-  setup is an `api.` subdomain with `httpOnly`, `SameSite` cookies.
-- **Demo shoppers are admins** so reviewers can see the retrain flow. The only admin action is a
-  cooldown-limited retrain, and nothing is destructive.
-- **Rate limits are in memory** and per instance. With `TRUST_FORWARDED_FOR` they key on the right-most
-  `X-Forwarded-For` hop. Behind a multi-proxy chain that hop can be a CDN edge, so limits become
-  coarser, not bypassable.
-- **Event spam could skew recommendations**: per-user rate limits, view de-duplication and
-  server-only purchase events reduce it, but there's no anomaly detection.
-- There's no email verification or password reset, and no payments.
-- **ESLint is pinned to v9** until the React/a11y lint plugins support v10.
+- The session token is kept in `localStorage` because the web app and API are on different sites.
+  The Content-Security-Policy limits the XSS risk; an `api.` subdomain with `httpOnly` cookies would be
+  stronger.
+- Demo shoppers are admins so reviewers can try retraining. The only admin action is a
+  cooldown-limited retrain.
+- Rate limits are kept in memory per API instance. Scaling out would need a shared store such as Redis.
+- There's no email verification or password reset.
+- ESLint stays on v9 until the React and accessibility lint plugins support v10.
 
-## Data and licence
+## Contributing
 
-The catalogue and purchase histories come from Daqing Chen, *Online Retail*, UCI Machine Learning
-Repository, [doi:10.24432/C5BW33](https://doi.org/10.24432/C5BW33) (CC BY 4.0). `scripts/build_seed.py`
-prepares it as follows:
+There's no `CONTRIBUTING.md`; the flow is:
+
+1. Create a branch from `main`.
+2. Make your change, with tests.
+3. If you changed the API's request or response models, regenerate the contract and the web app's
+   types: `uv run python scripts/export_openapi.py` in `apps/api`, then `npm run gen:api` in
+   `apps/web`.
+4. Run the checks listed under [Testing](#testing).
+5. Open a pull request and wait for CI to pass before merging.
+
+## Data
+
+The product catalogue and purchase histories come from Daqing Chen, *Online Retail*, UCI Machine
+Learning Repository, [doi:10.24432/C5BW33](https://doi.org/10.24432/C5BW33), licensed CC BY 4.0.
+`apps/api/scripts/build_seed.py` prepares it as follows:
 
 - Drops cancellations, non-product lines and rows without a customer.
-- Keeps the 1,000 most-bought products and 3,000 random customers who have at least 5 items each.
-- Derives readable titles and keyword-based categories, and uses each product's median unit price
-  (GBP).
-- Shifts timestamps at seed time so the history ends "yesterday".
-- Clips wholesale quantities to shopper-sized ones for the demo's past orders.
+- Keeps the 1,000 most-bought products and 3,000 random customers with at least 5 items each.
+- Derives readable titles and keyword-based categories, and uses each product's median price.
+- At seed time, shifts timestamps so the history ends "yesterday".
+
+## License
+
+All rights reserved. The repository has no LICENSE file. The dataset keeps its own CC BY 4.0
+licence.
